@@ -96,6 +96,21 @@ All endpoints require the X-API-Key header for validation. Responses are JSON un
 **Response**: 200 OK - StreamingResponse (file bytes, with appropriate MIME type).  
 **Errors**: 401 (invalid key), 404 (not found), 500 (DB error).
 
+### GET /memory_graph
+**Description**: Retrieve the consolidated knowledge graph (entities and relationships) for the user.  
+**Query Parameters**: user_id: str (required).  
+**Headers**: X-API-Key (required).  
+**Response**: 200 OK - {"status": "success", "edges": List[Dict], "user_facts": List[Dict]}.  
+**Errors**: 401 (invalid key), 500 (DB error).
+
+### POST /clear_memory
+**Description**: Wipe all extracted knowledge graph facts and user preferences for a specific user.  
+**Parameters** (multipart/form-data):  
+- user_id: str (required).  
+**Headers**: X-API-Key (required).  
+**Response**: 200 OK - {"status": "success", "message": "Memory cleared"}.  
+**Errors**: 401 (invalid key), 500 (DB error).
+
 ### GET /chat_sessions
 **Description**: List all chat sessions for a user, including messages.  
 **Query Parameters**: user_id: str (required).  

@@ -1,110 +1,111 @@
-# PDF-AutoMem — Document Processing & Retrieval-Augmented Generation
+# AutoMem — The Intelligent Academic Assistant 🧠
 
-**PDF-AutoMem** is a Retrieval-Augmented Generation (RAG) microservice for processing, embedding, and querying documents. It integrates document parsing, semantic search, knowledge graph construction, and LLM-based generation to provide advanced document intelligence.
+**AutoMem** is a next-generation Retrieval-Augmented Generation (RAG) system specifically re-engineered as a **Student Academic Assistant**. Unlike traditional RAG, AutoMem doesn't just read documents—it *builds a brain*.
 
-Built with scalability in mind, it uses **PostgreSQL** for session management, **Qdrant** for vector storage, **Dgraph** for graph-based indexing, and **Celery** for asynchronous task processing. LLM calls are routed through [**FastRouter**](https://fastrouter.ai), enabling flexible model selection (Claude, GPT, Gemini, etc.) via a single OpenAI-compatible endpoint.
+By combining **Semantic Vector Search** (Qdrant) with a persistent **PostgreSQL Knowledge Graph**, AutoMem extracts structured relationships from your documents and remembers your personal preferences across every chat session.
 
-## Architecture
+---
 
+## 🏗️ AutoMem Architecture
+
+AutoMem follows a hybrid retrieval strategy: **Vector + Graph**.
+
+```mermaid
+graph TD
+    subgraph "Ingestion Flow"
+        Doc[User Documents] --> OCR[OCR / Markdown Converter]
+        OCR --> Clean[LLM OCR Cleaner]
+        Clean --> Chunk[500-Token Chunker]
+        Chunk --> Embed[FastRouter Embeddings]
+        Chunk --> Entity[LLM Entity & Relationship Extraction]
+        Embed --> Qdrant[(Qdrant Vector DB)]
+        Entity --> Graph[(PostgreSQL Knowledge Graph)]
+    end
+
+    subgraph "Query Flow"
+        User[User Query] --> EntExt[Extract Query Entities]
+        EntExt --> GraphSearch[Fetch Related Graph Facts]
+        User --> VectorSearch[Semantic Vector Search]
+        User --> UserMem[Fetch Global User Preferences]
+        GraphSearch --> Context[Unified Context Builder]
+        VectorSearch --> Context
+        UserMem --> Context
+        Context --> LLM[FastRouter LLM Generation]
+        LLM --> Response[Cited Assistant Response]
+    end
+
+    subgraph "Memory Loop"
+        Response --> Learn[Async Memory Extraction]
+        Learn --> Graph
+    end
 ```
-┌─────────────┐     ┌──────────────┐     ┌────────────┐
-│  Streamlit   │────▶│   FastAPI     │────▶│  FastRouter │
-│  Frontend    │     │   Backend     │     │  LLM API   │
-└─────────────┘     └──────┬───────┘     └────────────┘
-                           │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-        ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │ PostgreSQL│ │  Qdrant  │ │  Celery  │
-        │ (sessions)│ │ (vectors)│ │ + Redis  │
-        └──────────┘ └──────────┘ └──────────┘
-```
 
-## Features
+---
 
-- 🗃 **Multi-Format Support**: `.pdf`, `.txt`, `.doc(x)`, `.xls(x)`, `.csv`, `.jpg`, `.png`, `.heic`, `.webp`, `.md`, `.rtf`, `.odt`, `.ods`
-- 🔄 **Smart Conversion**: Documents → markdown via specialized parsers
-- ✂️ **Chunking & Embedding**: 500-token segments, embeddings via FastRouter (OpenAI, Mistral, etc.)
-- 🔍 **Hybrid Search**: Combines semantic vector search + entity graph relationships
-- 💬 **Chat**: `/chat` endpoint with cited sources, Master Chat (all docs) & Category Chat
-- 🧠 **Knowledge Graph**: Entity/relationship extraction via spaCy NLP
-- 🚀 **Async OCR**: Celery-powered background processing for file uploads
-- 🗂 **Categories**: Organize documents with custom category prompts
-- 🔒 **API Key Auth**: All endpoints secured via `X-API-Key` header
+## 🌟 Key AutoMem Features
 
-## Quick Start
+### 1. Persistent Knowledge Graph (The "Brain")
+Every document you upload is parsed for entities and relationships (e.g., `DNA` → `is_structured_as` → `Double Helix`). These facts are stored in PostgreSQL and injected into your chat context whenever relevant entities are mentioned.
 
-1. **Clone & configure**:
+### 2. Global User Memory (Self-Learning)
+AutoMem listens to you. If you mention "I am a medical student" or "I prefer bullet points," the system extracts these as **User Facts**. This memory is **Global**—the assistant will remember who you are even if you start a brand-new chat session.
+
+### 3. Academic Persona System
+Organize your university life with specialized processing pipelines:
+- **Research Papers**: Prioritizes findings, methodology, and citation accuracy.
+- **Lecture Notes**: Focuses on definitions, formulas, and conceptual hierarchy.
+- **Assignments**: Tracks rubrics, deadlines, and grading criteria.
+
+### 4. Interactive Brain Visualizer
+Click the **"🌌 View Global Memory Graph"** in the sidebar to see a live, interactive 3D simulation of your computer's "mind." Watch how different documents connect through shared concepts and see exactly what the system has learned about you.
+
+### 5. Memory Management (Clear Brain)
+Need a fresh start? Use the **🗑️ Clear Global Memory** button to wipe all learned facts and document relationships while keeping your source files intact.
+
+---
+
+## 🛠️ Tech Stack & Integration
+
+| Component | Technology | Role |
+|-----------|-----------|------|
+| **Core API** | FastAPI | High-performance backend routing |
+| **Frontend** | Streamlit | Modern, interactive user interface |
+| **Intelligence** | [FastRouter](https://fastrouter.ai) | Unified LLM gateway (Claude 3.5, GPT-4, Gemini) |
+| **Vector DB** | Qdrant | Fast semantic similarity search |
+| **Graph DB** | PostgreSQL | Persistent entity-relationship storage |
+| **Task Queue** | Celery + Redis | Asynchronous OCR and memory extraction |
+| **Parsing** | ocrmypdf + spaCy | Document extraction and NLP processing |
+
+---
+
+## 🚀 Getting Started
+
+1. **Configure Environment**:
    ```bash
-   git clone https://github.com/KshitijDatir/PDF-AutoMem.git
-   cd PDF-AutoMem
    cp env_example .env
+   # Set your FASTROUTER_API_KEY and APP_API_KEY
    ```
 
-2. **Edit `.env`** — set your FastRouter API key and app auth key:
-   ```env
-   OPENAI_API_KEY=sk-v1-your_fastrouter_key
-   OPENAI_BASE_URL=https://go.fastrouter.ai/api/v1
-   OPENAI_CHAT_MODEL=anthropic/claude-sonnet-4-20250514
-   APP_API_KEY=your_secret_app_key
-   ```
-
-3. **Launch**:
+2. **Deploy with Docker**:
    ```bash
    docker compose up -d --build
    ```
 
-4. **Access**:
-   - FastAPI backend: `http://localhost:8000/api/docs`
-   - Streamlit UI: `http://localhost:8501`
-   - pgAdmin: `http://localhost:9012`
+3. **Access the Hub**:
+   - **Streamlit App**: `http://localhost:8501`
+   - **API Docs**: `http://localhost:8000/api/docs`
 
-## Model Configuration
+---
 
-FastRouter routes requests to any supported provider. Configure via `.env`:
+## 🔍 How to Test the Intelligence
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `OPENAI_CHAT_MODEL` | `anthropic/claude-sonnet-4-20250514` | Chat/generation model |
-| `OPENAI_EMBEDDING_MODEL` | `openai/text-embedding-3-small` | Embedding model |
-| `OPENAI_BASE_URL` | `https://go.fastrouter.ai/api/v1` | FastRouter endpoint |
+1. **Upload a Paper**: Upload an academic PDF. Select the `research_papers` category.
+2. **State a Preference**: Tell the bot: *"I am an engineering student, please explain concepts using physics analogies."*
+3. **Check the Graph**: Open the Global Memory Graph to see your "student status" saved as a node.
+4. **New Chat Verification**: Start a new chat session and ask: *"How should you explain things to me?"* Output should confirm it remembers your engineering background and physics preference.
 
-### Supported Embedding Models
+---
 
-| Provider | Model | Dimensions | Max Tokens | Price ($/1M tokens) |
-|----------|-------|-----------|------------|---------------------|
-| **OpenAI** | text-embedding-3-small | 1,536 | ~8,191 | $0.020 |
-| **OpenAI** | text-embedding-3-large | 3,072 | ~8,191 | $0.130 |
-| **Google** | gemini-embedding-001 | 3,072 | 2,048 | *Not disclosed* |
-| **Mistral** | mistral-embed | 1,024 | 32,768 | $0.010 |
-
-## Example Use Cases
-
-- Extract key findings and citations from research PDFs and summarize methodology
-- Organize academic documents into categories (research papers, lecture notes, assignments) with category-specific prompts
-- Query across all study materials or specific categories for coherent, cited responses
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Backend | FastAPI + Uvicorn |
-| Frontend | Streamlit |
-| LLM Routing | FastRouter (OpenAI-compatible) |
-| Vector DB | Qdrant |
-| Relational DB | PostgreSQL |
-| Task Queue | Celery + Redis |
-| OCR | ocrmypdf + Tesseract |
-| NLP | spaCy (en_core_web_sm) |
-| Containerization | Docker Compose |
-
-## API Documentation
-
-See [`api_docs.md`](./api_docs.md) for detailed endpoint usage.
-
-## Current Limitations
-
-- Large PDFs (>40 pages) may face context window limitations
-- Multi-file processing tested up to 5 concurrent files
-- Master Chat orchestration chain is still under development
+## 📜 API Documentation
+For detailed endpoint specifications (Processing, Chat, Prompts, Memory), refer to [**api_docs.md**](./api_docs.md).
 
