@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Install system dependencies (merged from exaOCR and pdfLLM)
+# Install system dependencies (merged from exaOCR and AutoMem)
 RUN apt-get update && apt-get install -y \
     libmagic-dev \
     poppler-utils \
@@ -27,7 +27,7 @@ COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install spaCy model (from pdfLLM)
+# Install spaCy model (from AutoMem)
 RUN python -m spacy download en_core_web_sm
 
 # Copy the entire project

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
     # Application settings
-    app_name: str = "PDFLLM RAG Microservice"
+    app_name: str = "PDF-AutoMem RAG Microservice"
     app_version: str = "1.0.0"
     debug: bool = False
 
@@ -27,17 +27,20 @@ class Settings(BaseSettings):
     max_embedding_tokens: int = 8191
     max_completion_tokens: int = 4096
 
-    # OpenAI settings
+    # LLM API settings (FastRouter)
     openai_enabled: bool = True
     openai_api_key: str
-    openai_embedding_model: str = "text-embedding-3-small"
-    openai_chat_model: str = "gpt-4o-mini"
-    openai_base_url: str = "https://api.openai.com/v1"  # Default OpenAI endpoint
+    openai_embedding_model: str = "openai/text-embedding-3-small"
+    openai_chat_model: str = "anthropic/claude-sonnet-4-20250514"
+    openai_base_url: str = "https://go.fastrouter.ai/api/v1"  # FastRouter endpoint
+
+    # App authentication
+    app_api_key: str = "changeme"
 
     # Qdrant settings
     qdrant_host: str = "qdrant"
     qdrant_port: int = 6333
-    qdrant_collection: str = "pdfllm_collection"
+    qdrant_collection: str = "automem_collection"
 
     # Dgraph settings
     dgraph_host: str = "dgraph"

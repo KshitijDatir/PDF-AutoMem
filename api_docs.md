@@ -119,7 +119,7 @@ All endpoints require the X-API-Key header for validation. Responses are JSON un
 - **Prompt**: id, category, prompt, created_at, updated_at, user_id.
 
 ## Security
-- All endpoints require X-API-Key matching the configured key (for OpenAI-enabled mode).  
+- All endpoints require X-API-Key matching the configured APP_API_KEY.  
 - User isolation via user_id in queries and filters.
 
 ## Notes

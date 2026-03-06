@@ -129,7 +129,7 @@ async def preprocess_ocr_text(text: str) -> str:
     chunks = split_large_text(text, max_tokens=settings.max_embedding_tokens // 2)
     cleaned_chunks = []
 
-    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    client = AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
 
     for chunk in chunks:
         try:

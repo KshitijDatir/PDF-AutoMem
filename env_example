@@ -1,23 +1,25 @@
 # Application settings
-APP_NAME=PDFLLM RAG Microservice
+APP_NAME=PDF-AutoMem RAG Microservice
 APP_VERSION=1.0.0
 DEBUG=False
+APP_API_KEY=your_app_api_key_here
 
 # File processing settings
 MAX_DOCUMENT_SIZE=52428800
 TEMP_UPLOAD_DIR=./data/temp_uploads
 DATA_DIR=./data
 
-# OpenAI settings
+# LLM API settings (FastRouter)
 OPENAI_ENABLED=true
-OPENAI_API_KEY=your_key_here
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-OPENAI_CHAT_MODEL=gpt-4o-mini
+OPENAI_API_KEY=your_fastrouter_key_here
+OPENAI_BASE_URL=https://go.fastrouter.ai/api/v1
+OPENAI_EMBEDDING_MODEL=openai/text-embedding-3-small
+OPENAI_CHAT_MODEL=anthropic/claude-sonnet-4-20250514
 
 # Qdrant settings
 QDRANT_HOST=qdrant
 QDRANT_PORT=6333
-QDRANT_COLLECTION=pdfllm_collection
+QDRANT_COLLECTION=automem_collection
 
 # PostgreSQL settings
 POSTGRES_HOST=postgres

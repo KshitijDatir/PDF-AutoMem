@@ -19,15 +19,15 @@ class TextProcessor:
             raise
 
         try:
-            self.client = AsyncOpenAI(api_key=openai_api_key)
+            self.client = AsyncOpenAI(api_key=openai_api_key, base_url=settings.openai_base_url)
             logger.info("OpenAI client initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize OpenAI client: {str(e)}")
             raise
 
         try:
-            self.tokenizer = tiktoken.encoding_for_model(settings.openai_embedding_model)
-            logger.info(f"Tokenizer initialized for OpenAI model: {settings.openai_embedding_model}")
+            self.tokenizer = tiktoken.get_encoding("cl100k_base")
+            logger.info(f"Tokenizer initialized (cl100k_base) for model: {settings.openai_embedding_model}")
         except Exception as e:
             logger.error(f"Failed to initialize tokenizer: {str(e)}")
             raise

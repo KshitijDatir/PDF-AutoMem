@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     user: 1000:1000
-    entrypoint: ["/bin/sh", "-c", "mkdir -p /app/data/logs && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    entrypoint: [ "/bin/sh", "-c", "mkdir -p /app/data/logs && exec uvicorn app.main:app --host 0.0.0.0 --port 8000" ]
     ports:
       - "8000:8000"
     volumes:
@@ -18,6 +18,8 @@ services:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://go.fastrouter.ai/api/v1}
+      - APP_API_KEY=${APP_API_KEY}
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
       - POSTGRES_PORT=${POSTGRES_PORT:-9011}
       - POSTGRES_DB=${POSTGRES_DB:-ragdb}
@@ -35,7 +37,7 @@ services:
       qdrant:
         condition: service_started
     networks:
-      - pdfllm
+      - automem
     restart: unless-stopped
 
   streamlit-service:
@@ -55,6 +57,8 @@ services:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://go.fastrouter.ai/api/v1}
+      - APP_API_KEY=${APP_API_KEY}
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
       - POSTGRES_PORT=${POSTGRES_PORT:-9011}
       - POSTGRES_DB=${POSTGRES_DB:-ragdb}
@@ -71,7 +75,7 @@ services:
       redis:
         condition: service_started
     networks:
-      - pdfllm
+      - automem
     restart: unless-stopped
 
   celery:
@@ -80,7 +84,7 @@ services:
       dockerfile: Dockerfile
     command: celery -A app.celery_app worker --loglevel=info
     user: 1000:1000
-    entrypoint: ["/bin/sh", "-c", "mkdir -p /app/data/logs && exec celery -A app.celery_app worker --loglevel=info"]
+    entrypoint: [ "/bin/sh", "-c", "mkdir -p /app/data/logs && exec celery -A app.celery_app worker --loglevel=info" ]
     volumes:
       - ./data:/app/data
       - ./data/logs:/app/data/logs
@@ -91,6 +95,7 @@ services:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://go.fastrouter.ai/api/v1}
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
       - POSTGRES_PORT=${POSTGRES_PORT:-9011}
       - POSTGRES_DB=${POSTGRES_DB:-ragdb}
@@ -100,7 +105,7 @@ services:
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
       - QDRANT_HOST=${QDRANT_HOST:-qdrant}
       - QDRANT_PORT=${QDRANT_PORT:-6333}
-      - OCRMYPDF_LOG_LEVEL=ERROR  # Reduce ocrmypdf log verbosity
+      - OCRMYPDF_LOG_LEVEL=ERROR # Reduce ocrmypdf log verbosity
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,7 +114,7 @@ services:
       qdrant:
         condition: service_started
     networks:
-      - pdfllm
+      - automem
     restart: unless-stopped
 
   postgres:
@@ -122,16 +127,16 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ragpassword}
       - PGPORT=9011
     volumes:
-      - pdfllm_postgres-data:/var/lib/postgresql/data
+      - automem_postgres-data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -p 9011 -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragdb}"]
+      test: [ "CMD-SHELL", "pg_isready -h localhost -p 9011 -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragdb}" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
     networks:
-      - pdfllm
+      - automem
     restart: unless-stopped
 
   pgadmin:
@@ -142,18 +147,14 @@ services:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@admin.com}
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin}
     volumes:
-      - pdfllm_pgadmin-data:/var/lib/pgadmin
+      - automem_pgadmin-data:/var/lib/pgadmin
     depends_on:
       postgres:
         condition: service_healthy
     entrypoint: >
-      /bin/sh -c "
-      echo '${POSTGRES_HOST:-postgres}:9011:*:${POSTGRES_USER:-raguser}:${POSTGRES_PASSWORD:-ragpassword}' > /tmp/pgpassfile &&
-      chmod 600 /tmp/pgpassfile &&
-      /entrypoint.sh
-      "
+      /bin/sh -c " echo '${POSTGRES_HOST:-postgres}:9011:*:${POSTGRES_USER:-raguser}:${POSTGRES_PASSWORD:-ragpassword}' > /tmp/pgpassfile && chmod 600 /tmp/pgpassfile && /entrypoint.sh "
     networks:
-      - pdfllm
+      - automem
     restart: unless-stopped
 
   redis:
@@ -161,14 +162,14 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - pdfllm_redis-data:/data
+      - automem_redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - pdfllm
+      - automem
     restart: unless-stopped
 
   qdrant:
@@ -177,17 +178,17 @@ services:
       - "6333:6333"
       - "6334:6334"
     volumes:
-      - pdfllm_qdrant-data:/qdrant/storage
+      - automem_qdrant-data:/qdrant/storage
     networks:
-      - pdfllm
+      - automem
     restart: unless-stopped
 
 networks:
-  pdfllm:
+  automem:
     driver: bridge
 
 volumes:
-  pdfllm_postgres-data:
-  pdfllm_pgadmin-data:
-  pdfllm_redis-data:
-  pdfllm_qdrant-data:
+  automem_postgres-data:
+  automem_pgadmin-data:
+  automem_redis-data:
+  automem_qdrant-data:

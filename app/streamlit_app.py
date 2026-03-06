@@ -74,7 +74,7 @@ def fetch_categories(user_id: str) -> List[str]:
     try:
         response = requests.get(
             f"{BASE_URL}/prompts?user_id={user_id}",
-            headers={"X-API-Key": settings.openai_api_key},
+            headers={"X-API-Key": settings.app_api_key},
             timeout=10
         )
         if response.status_code == 200:
@@ -128,13 +128,13 @@ def create_new_chat():
     st.rerun()
 
 def get_file_preview_url(file_id: str, user_id: str) -> Optional[str]:
-    return f"{BASE_URL}/preview/{file_id}?user_id={user_id}&X-API-Key={settings.openai_api_key}"
+    return f"{BASE_URL}/preview/{file_id}?user_id={user_id}&X-API-Key={settings.app_api_key}"
 
 def check_file_status(user_id: str, file_id: str) -> Dict:
     try:
         response = requests.get(
             f"{BASE_URL}/documents?user_id={user_id}",
-            headers={"X-API-Key": settings.openai_api_key},
+            headers={"X-API-Key": settings.app_api_key},
             timeout=10
         )
         if response.status_code == 200:
@@ -199,7 +199,7 @@ def render_document_management(user_id: str):
                             f"{BASE_URL}/process_file",
                             files=files,
                             data=data,
-                            headers={"X-API-Key": settings.openai_api_key},
+                            headers={"X-API-Key": settings.app_api_key},
                             timeout=30
                         )
                         if response.status_code == 200:
@@ -284,7 +284,7 @@ def render_document_management(user_id: str):
         with st.spinner("Loading documents..."):
             response = requests.get(
                 f"{BASE_URL}/documents?user_id={user_id}",
-                headers={"X-API-Key": settings.openai_api_key},
+                headers={"X-API-Key": settings.app_api_key},
                 timeout=30
             )
             if response.status_code == 200:
@@ -325,7 +325,7 @@ def render_document_management(user_id: str):
                                         response = requests.patch(
                                             f"{BASE_URL}/documents/{file['file_id']}",
                                             data={"user_id": user_id, "category": category if category != "other" else None},
-                                            headers={"X-API-Key": settings.openai_api_key},
+                                            headers={"X-API-Key": settings.app_api_key},
                                             timeout=30
                                         )
                                         if response.status_code == 200:
@@ -352,7 +352,7 @@ def render_document_management(user_id: str):
                                         with st.spinner("Deleting..."):
                                             response = requests.delete(
                                                 f"{BASE_URL}/documents/{file['file_id']}?user_id={user_id}",
-                                                headers={"X-API-Key": settings.openai_api_key},
+                                                headers={"X-API-Key": settings.app_api_key},
                                                 timeout=30
                                             )
                                             if response.status_code == 200:
@@ -401,7 +401,7 @@ def render_prompt_management(user_id: str):
                     response = requests.post(
                         f"{BASE_URL}/prompts",
                         data={"category": category, "prompt": prompt_text, "user_id": user_id},
-                        headers={"X-API-Key": settings.openai_api_key},
+                        headers={"X-API-Key": settings.app_api_key},
                         timeout=30
                     )
                     if response.status_code == 200:
@@ -421,7 +421,7 @@ def render_prompt_management(user_id: str):
     try:
         response = requests.get(
             f"{BASE_URL}/prompts?user_id={user_id}",
-            headers={"X-API-Key": settings.openai_api_key},
+            headers={"X-API-Key": settings.app_api_key},
             timeout=30
         )
         if response.status_code == 200:
@@ -435,7 +435,7 @@ def render_prompt_management(user_id: str):
                         try:
                             response = requests.delete(
                                 f"{BASE_URL}/prompts/{prompt['category']}?user_id={user_id}",
-                                headers={"X-API-Key": settings.openai_api_key},
+                                headers={"X-API-Key": settings.app_api_key},
                                 timeout=30
                             )
                             if response.status_code == 200:
@@ -465,7 +465,7 @@ def render_chat_sessions(user_id: str):
     try:
         response = requests.get(
             f"{BASE_URL}/chat_sessions?user_id={user_id}",
-            headers={"X-API-Key": settings.openai_api_key},
+            headers={"X-API-Key": settings.app_api_key},
             timeout=30
         )
         if response.status_code == 200:
@@ -490,7 +490,7 @@ def render_chat_sessions(user_id: str):
                         try:
                             response = requests.delete(
                                 f"{BASE_URL}/chat_sessions/{chat_id}?user_id={user_id}",
-                                headers={"X-API-Key": settings.openai_api_key},
+                                headers={"X-API-Key": settings.app_api_key},
                                 timeout=30
                             )
                             if response.status_code == 200:
@@ -556,7 +556,7 @@ def render_entity_graph(sources: List[Dict]):
     components.html(html_content, height=400)
 
 def main():
-    st.set_page_config(page_title="PDFLLM RAG App", layout="wide", initial_sidebar_state="expanded")
+    st.set_page_config(page_title="PDF-AutoMem", layout="wide", initial_sidebar_state="expanded")
     user_id = "default_user"
 
     # Fetch categories dynamically
@@ -567,7 +567,7 @@ def main():
     render_prompt_management(user_id)
     render_chat_sessions(user_id)
 
-    st.title("PDFLLM RAG App")
+    st.title("PDF-AutoMem")
     category = st.selectbox("Query Category", query_categories, index=0)
 
     if st.session_state.current_chat_id:
@@ -599,7 +599,7 @@ def main():
                 response = requests.post(
                     f"{BASE_URL}/chat",
                     data=data,
-                    headers={"X-API-Key": settings.openai_api_key},
+                    headers={"X-API-Key": settings.app_api_key},
                     timeout=30
                 )
                 if response.status_code == 200:

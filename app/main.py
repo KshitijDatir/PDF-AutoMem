@@ -64,7 +64,7 @@ app.add_middleware(
 api_key_header = APIKeyHeader(name="X-API-Key")
 
 async def validate_api_key(api_key: str = Depends(api_key_header)):
-    if api_key != settings.openai_api_key:
+    if api_key != settings.app_api_key:
         logger.error(f"Invalid API key provided: {api_key[:4]}...")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -183,7 +183,7 @@ def get_file_converter(file_ext: str):
 def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
     validate_provider_settings()
     try:
-        client = OpenAI(api_key=settings.openai_api_key)
+        client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
         response = client.embeddings.create(
             input=texts,
             model=settings.openai_embedding_model,
@@ -314,7 +314,7 @@ def generate_coherent_response(query: str, context: str, category: str, user_id:
         conn.close()
 
     try:
-        client = OpenAI(api_key=settings.openai_api_key)
+        client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
     except Exception as e:
         logger.error(f"Failed to initialize OpenAI client: {str(e)}")
         raise HTTPException(status_code=500, detail="Service configuration error")

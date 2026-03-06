@@ -68,9 +68,14 @@ class QdrantHandler:
 
     def delete_by_document_id(self, document_id: str):
         try:
+            from qdrant_client.http.models import Filter, FieldCondition, MatchValue, FilterSelector
             self.client.delete(
                 collection_name=self.collection_name,
-                points_selector={"filter": {"must": [{"key": "document_id", "match": {"value": document_id}}]}}
+                points_selector=FilterSelector(
+                    filter=Filter(
+                        must=[FieldCondition(key="document_id", match=MatchValue(value=document_id))]
+                    )
+                )
             )
             logger.info(f"Deleted chunks for document {document_id}")
         except Exception as e:
@@ -79,10 +84,13 @@ class QdrantHandler:
 
     def update_metadata(self, document_id: str, metadata: dict):
         try:
-            self.client.update_collection(
+            from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+            self.client.set_payload(
                 collection_name=self.collection_name,
-                points_selector={"filter": {"must": [{"key": "document_id", "match": {"value": document_id}}]}},
-                payload=metadata
+                payload=metadata,
+                points=Filter(
+                    must=[FieldCondition(key="document_id", match=MatchValue(value=document_id))]
+                )
             )
             logger.info(f"Updated metadata for document {document_id}")
         except Exception as e:
