@@ -6,9 +6,9 @@ By combining **Semantic Vector Search** (Qdrant) with a persistent **PostgreSQL 
 
 ---
 
-## 🏗️ AutoMem Architecture
+## 🏗️ System Architecture
 
-AutoMem follows a hybrid retrieval strategy: **Vector + Graph**.
+System follows a hybrid retrieval strategy: **Vector + Graph**.
 
 ```mermaid
 graph TD
@@ -42,7 +42,7 @@ graph TD
 
 ---
 
-## 🌟 Key AutoMem Features
+## 🌟 Key Features
 
 ### 1. Persistent Knowledge Graph (The "Brain")
 Every document you upload is parsed for entities and relationships (e.g., `DNA` → `is_structured_as` → `Double Helix`). These facts are stored in PostgreSQL and injected into your chat context whenever relevant entities are mentioned.
