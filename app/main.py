@@ -9,7 +9,7 @@ import re
 from typing import List, Dict, Optional, Any
 from io import BytesIO
 from pathlib import Path
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, status, Request
+from fastapi import FastAPI, UploadFile, File, Form, Query, HTTPException, Depends, status, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
@@ -21,7 +21,9 @@ from pydantic import BaseModel
 from app.config import settings
 from app.utils.qdrant_handler import QdrantHandler
 from app.utils.ocr_processor import OCRProcessor
+from app.utils.context_builder import build_context
 from app.utils.helpers import preprocess_ocr_text, classify_document, get_db_connection, text_processor
+from app.utils.graph_db import clear_user_memory
 from app.converters import image_converter, doc_converter, excel_converter, txt_converter
 from app.celery_app import celery_app
 from qdrant_client.http.models import Filter, FieldCondition, MatchValue, MatchAny
@@ -454,7 +456,7 @@ async def chat_with_documents(
                         "sources": []
                     }
 
-                context = await build_chat_context(search_results)
+                context = await build_context(conn, cleaned_query, user_id, chat_id, search_results)
                 response = generate_coherent_response(cleaned_query, context, category, user_id)
 
                 chat_id = chat_id or str(uuid.uuid4())
@@ -478,6 +480,13 @@ async def chat_with_documents(
                     """,
                     (chat_id, "user", query, chat_id, "assistant", response)
                 )
+
+                # Trigger background user memory extraction
+                celery_app.send_task(
+                    "app.celery_app.extract_user_memory",
+                    args=[chat_id, user_id]
+                )
+                logger.info(f"Queued memory extraction task for chat: {chat_id}")
                 cur.execute(
                     "UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE chat_id = %s",
                     (chat_id,)
@@ -513,9 +522,30 @@ async def chat_with_documents(
         logger.error(f"Unexpected error in chat endpoint: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
+@app.post("/clear_memory", response_model=Dict[str, str])
+async def reset_memory(
+    user_id: str = Form(...),
+    api_key: str = Depends(validate_api_key)
+):
+    """Deletes all Knowledge Graph data and user facts for a specific user."""
+    try:
+        conn = get_db_connection()
+        try:
+            success = clear_user_memory(conn, user_id)
+            if success:
+                logger.info(f"Memory reset successful for user: {user_id}")
+                return {"status": "success", "message": "All memory cleared successfully."}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to clear memory.")
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error(f"Error reset_memory for user {user_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Reset error: {str(e)}")
+
 @app.get("/documents", response_model=Dict[str, Any])
 async def list_documents(
-    user_id: str,
+    user_id: str = Query(...),
     api_key: str = Depends(validate_api_key)
 ):
     try:
@@ -553,7 +583,7 @@ async def list_documents(
 @app.delete("/documents/{file_id}", response_model=Dict[str, str])
 async def delete_document(
     file_id: str,
-    user_id: str,
+    user_id: str = Query(...),
     api_key: str = Depends(validate_api_key)
 ):
     try:
@@ -585,7 +615,7 @@ async def delete_document(
 @app.patch("/documents/{file_id}", response_model=Dict[str, str])
 async def update_document_category(
     file_id: str,
-    user_id: str,
+    user_id: str = Form(...),
     category: str = Form(...),
     api_key: str = Depends(validate_api_key)
 ):
@@ -614,6 +644,55 @@ async def update_document_category(
     except Exception as e:
         logger.error(f"Unexpected error in update_document_category: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+@app.get("/memory_graph", response_model=Dict[str, Any])
+async def get_memory_graph(
+    user_id: str = Query(...),
+    api_key: str = Depends(validate_api_key)
+):
+    """Retrieve the entire knowledge graph of facts extracted for the user and their documents."""
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            # Get edges (Document relations)
+            cur.execute(
+                """
+                SELECT source_node, relation, target_node, confidence 
+                FROM memory_edges 
+                WHERE user_id = %s
+                ORDER BY created_at DESC 
+                LIMIT 500
+                """,
+                (user_id,)
+            )
+            edges = [
+                {"source": row[0], "relation": row[1], "target": row[2], "confidence": row[3]} 
+                for row in cur.fetchall()
+            ]
+
+            # Get user facts as independent nodes or direct connections to the user
+            cur.execute(
+                """
+                SELECT value, created_at 
+                FROM memory_nodes 
+                WHERE type = 'user_fact' AND user_id = %s
+                ORDER BY created_at DESC 
+                LIMIT 100
+                """,
+                (user_id,)
+            )
+            user_facts = [{"fact": row[0], "created_at": str(row[1])} for row in cur.fetchall()]
+
+            return {
+                "status": "success",
+                "edges": edges,
+                "user_facts": user_facts
+            }
+    except Exception as e:
+        logger.error(f"Failed to retrieve memory graph: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve memory graph: {str(e)}")
+    finally:
+        conn.close()
 
 @app.post("/prompts", response_model=Dict[str, Any])
 async def create_prompt(
@@ -686,7 +765,7 @@ async def create_prompt(
 
 @app.get("/prompts", response_model=Dict[str, Any])
 async def list_prompts(
-    user_id: str,
+    user_id: str = Query(...),
     api_key: str = Depends(validate_api_key)
 ):
     try:
@@ -722,7 +801,7 @@ async def list_prompts(
 @app.get("/prompts/{category}", response_model=Dict[str, Any])
 async def get_prompt(
     category: str,
-    user_id: str,
+    user_id: str = Query(...),
     api_key: str = Depends(validate_api_key)
 ):
     try:
@@ -761,7 +840,7 @@ async def get_prompt(
 @app.delete("/prompts/{category}", response_model=Dict[str, str])
 async def delete_prompt(
     category: str,
-    user_id: str,
+    user_id: str = Query(...),
     api_key: str = Depends(validate_api_key)
 ):
     try:
@@ -788,7 +867,7 @@ async def delete_prompt(
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 @app.get("/preview/{file_id}")
-async def preview_file(file_id: str, user_id: str, api_key: str = Depends(validate_api_key)):
+async def preview_file(file_id: str, user_id: str = Query(...), api_key: str = Depends(validate_api_key)):
     try:
         conn = get_db_connection()
         try:
@@ -838,7 +917,7 @@ async def preview_file(file_id: str, user_id: str, api_key: str = Depends(valida
 
 @app.get("/chat_sessions", response_model=Dict[str, Any])
 async def list_chat_sessions(
-    user_id: str,
+    user_id: str = Query(...),
     api_key: str = Depends(validate_api_key)
 ):
     try:
@@ -886,7 +965,7 @@ async def list_chat_sessions(
 @app.delete("/chat_sessions/{chat_id}", response_model=Dict[str, str])
 async def delete_chat_session(
     chat_id: str,
-    user_id: str,
+    user_id: str = Query(...),
     api_key: str = Depends(validate_api_key)
 ):
     try:

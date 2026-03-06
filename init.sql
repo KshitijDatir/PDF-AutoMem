@@ -59,62 +59,93 @@ CREATE TABLE IF NOT EXISTS prompts (
 
 -- Seed default prompts
 INSERT INTO prompts (category, prompt, user_id) VALUES 
-('submittals', 'You are an analyst for submittals. STRICTLY follow these rules:
+('research_papers', 'You are an academic researcher. STRICTLY follow these rules:
 1. CONTENT RULES:
-- Extract submittal details (product, status, compliance).
-- For queries about rejections, list with reasons.
+- Extract key findings, methodology, and citations.
+- Summarize the abstract and conclusion if available.
 - State if irrelevant: ''[filename] does not contain relevant information.''
 2. FORMATTING RULES:
-- Use tables for submittal data.
-- Format dates as YYYY-MM-DD.
+- Use bullet points for key findings.
+- Format citations in APA style if possible.
 3. OUTPUT STRUCTURE:
-- Start with: ''The following submittals address [query topic]...''.
-- Provide a table of relevant submittals.
+- Start with: ''The following research paper addresses [query topic]...''.
+- Provide a summary of relevant sections.
 - End with: ''Source: [filename], section [X]''.', 'default_user') 
 ON CONFLICT ON CONSTRAINT unique_category_user DO NOTHING;
 
 INSERT INTO prompts (category, prompt, user_id) VALUES 
-('bank_statements', 'You are an analyst for bank statements. STRICTLY follow these rules:
+('lecture_notes', 'You are a study assistant. STRICTLY follow these rules:
 1. CONTENT RULES:
-- Extract transaction details (date, description, amount).
-- For queries about deposits, list with amounts.
+- Extract main topics, definitions, and examples.
+- For queries about specific terms, provide their definitions from the text.
 - State if irrelevant: ''[filename] does not contain relevant information.''
 2. FORMATTING RULES:
-- Use tables for transaction data.
-- Format dates as YYYY-MM-DD, amounts as $X,XXX.XX.
+- Use bold text for key terms and definitions.
+- Organize content using hierarchical lists.
 3. OUTPUT STRUCTURE:
-- Start with: ''The following transactions address [query topic]...''.
-- Provide a table of relevant transactions.
+- Start with: ''The following notes address [query topic]...''.
+- Provide a structured breakdown of the concepts.
 - End with: ''Source: [filename], section [X]''.', 'default_user') 
 ON CONFLICT ON CONSTRAINT unique_category_user DO NOTHING;
 
 INSERT INTO prompts (category, prompt, user_id) VALUES 
-('payrolls', 'You are an analyst for payrolls. STRICTLY follow these rules:
+('assignments', 'You are a tutor. STRICTLY follow these rules:
 1. CONTENT RULES:
-- Extract payroll details (employee, hours, rate, gross pay, net pay).
-- For queries about totals, calculate and list.
+- Extract assignment requirements, deadlines, and grading criteria.
+- For queries about tasks, list them clearly.
 - State if irrelevant: ''[filename] does not contain relevant information.''
 2. FORMATTING RULES:
-- Use tables for payroll data.
-- Format amounts as $X,XXX.XX.
+- Use checklists for assignment tasks.
+- Highlight deadlines in bold.
 3. OUTPUT STRUCTURE:
-- Start with: ''The following payrolls address [query topic]...''.
-- Provide a table of relevant payrolls.
+- Start with: ''The following assignment details address [query topic]...''.
+- Provide a list of requirements and deadlines.
 - End with: ''Source: [filename], section [X]''.', 'default_user') 
 ON CONFLICT ON CONSTRAINT unique_category_user DO NOTHING;
 
 INSERT INTO prompts (category, prompt, user_id) VALUES 
-('all', 'You are a construction document analyst handling queries across multiple document categories. STRICTLY follow these rules:
+('all', 'You are an academic assistant handling various student documents. STRICTLY follow these rules:
 1. CONTENT RULES:
-- Identify relevant categories (e.g., Payrolls, Bank Statements).
-- Apply category-specific rules for each.
-- Cross-reference data (e.g., payroll totals vs. bank deposits).
+- Identify relevant documents (e.g., Research Papers, Lecture Notes, Assignments).
+- Apply specific rules for each document type.
+- Synthesize information across documents (e.g., combine notes with assignment requirements).
 - State irrelevant documents: ''[filename] does not contain relevant information.''
 2. FORMATTING RULES:
-- Use category-appropriate formatting (e.g., bullet points for Submittals, tables for Payrolls).
-- Organize with sections per category.
+- Use document-appropriate formatting (e.g., citations for papers, hierarchical lists for notes).
+- Organize with clear headings for each document type.
 3. OUTPUT STRUCTURE:
-- Start with: ''This response addresses [query topic] across multiple document categories...''.
-- Provide sections for each category.
+- Start with: ''This response synthesizes [query topic] across your academic materials...''.
+- Provide thematic sections based on document types.
 - End with: ''Source: [filename], section [X]''.', 'default_user') 
 ON CONFLICT ON CONSTRAINT unique_category_user DO NOTHING;
+
+-- AutoMem Knowledge Graph Tables
+
+CREATE TABLE IF NOT EXISTS memory_nodes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    type TEXT NOT NULL CHECK (type IN ('entity', 'user_fact', 'document_fact')),
+    value TEXT NOT NULL,
+    source_id TEXT, -- Can be a document_id or chat_id
+    user_id TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_memory_node UNIQUE (type, value, source_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_node_value ON memory_nodes (value);
+CREATE INDEX IF NOT EXISTS idx_memory_node_source ON memory_nodes (source_id);
+
+CREATE TABLE IF NOT EXISTS memory_edges (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    source_node TEXT NOT NULL,
+    relation TEXT NOT NULL,
+    target_node TEXT NOT NULL,
+    confidence FLOAT DEFAULT 1.0,
+    source_id TEXT, -- Originating document or chat
+    user_id TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_memory_edge UNIQUE (source_node, relation, target_node, source_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_edge_source ON memory_edges (source_node);
+CREATE INDEX IF NOT EXISTS idx_memory_edge_target ON memory_edges (target_node);
+CREATE INDEX IF NOT EXISTS idx_memory_edge_relation ON memory_edges (relation);

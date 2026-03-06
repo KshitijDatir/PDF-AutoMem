@@ -44,9 +44,9 @@ def get_db_connection():
 
 def classify_document(content: str) -> str:
     keywords = {
-        "submittals": ["ASTM", "submittal", "material", "compliance"],
-        "payrolls": ["gross pay", "net pay", "employee", "hours", "rate"],
-        "bank_statements": ["deposit", "withdrawal", "balance", "account number"]
+        "research_papers": ["abstract", "introduction", "methodology", "conclusion", "references", "citations"],
+        "lecture_notes": ["lecture", "module", "definition", "example", "topic"],
+        "assignments": ["assignment", "due date", "deadline", "instructions", "grading", "rubric"]
     }
     content_lower = content.lower()
     for category, terms in keywords.items():
@@ -145,10 +145,10 @@ async def preprocess_ocr_text(text: str) -> str:
                 "3. Rejoin broken names/words that remain after Step-0.\n"
                 "4. Separate metadata labels (Date, Signature, etc.) from the preceding name/value.\n"
                 "5. Preserve markdown headings, lists, and tables; ensure tables are well-aligned.\n"
-                "6. If payroll data (employee, role, hours, rate, gross/net pay) is present:\n"
-                "   - Render it in a markdown table with columns: Employee, Role, Hours, Rate, Gross Pay, Net Pay.\n"
-                "   - Validate: Gross Pay ≈ Hours × Rate, Net Pay < Gross Pay. Note any assumptions.\n"
-                "7. If not payroll-related, simply return clean markdown prose.\n"
+                "6. If academic data (citations, definitions, formulas) is present:\n"
+                "   - Ensure citations are formatted consistently.\n"
+                "   - Format definitions clearly (Term: Definition).\n"
+                "7. If not specifically academic, simply return clean markdown prose.\n"
                 "8. Remove gibberish or noise; keep all meaningful data.\n"
                 "9. Comment assumptions with <!-- ... -->.\n"
                 "10. Return only the cleaned markdown.\n"
@@ -165,8 +165,8 @@ async def preprocess_ocr_text(text: str) -> str:
                             "Correct OCR errors, including spaces between characters in words, names, or numbers. "
                             "Format numbers and names properly, ensuring single '$' for currency, and structure the output in clear, coherent markdown. "
                             "Preserve meaningful information and structural elements (e.g., lists, tables). "
-                            "For payroll data, format details in a markdown table with columns: Employee, Role, Hours, Rate, Gross Pay, Net Pay. "
-                            "Validate numerical consistency: Gross Pay = Hours × Rate, Net Pay < Gross Pay. "
+                            "For academic data, ensure citations are consistent and definitions are clear. "
+                            "Preserve meaningful information and structural elements (e.g., lists, tables, formulas). "
                             "Note any assumptions made due to ambiguous text in markdown comments."
                         )
                     },

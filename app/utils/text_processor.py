@@ -156,10 +156,10 @@ class TextProcessor:
                 "3. Rejoin broken names/words that remain after Step-0.\n"
                 "4. Separate metadata labels (Date, Signature, etc.) from the preceding name/value.\n"
                 "5. Preserve markdown headings, lists, and tables; ensure tables are well-aligned.\n"
-                "6. If payroll data (employee, role, hours, rate, gross/net pay) is present:\n"
-                "   - Render it in a markdown table with columns: Employee, Role, Hours, Rate, Gross Pay, Net Pay.\n"
-                "   - Validate: Gross Pay ≈ Hours × Rate, Net Pay < Gross Pay. Note any assumptions.\n"
-                "7. If not payroll-related, simply return clean markdown prose.\n"
+                "6. If academic data (citations, definitions, formulas) is present:\n"
+                "   - Ensure citations are formatted consistently.\n"
+                "   - Format definitions clearly (Term: Definition).\n"
+                "7. If not specifically academic, simply return clean markdown prose.\n"
                 "8. Remove gibberish or noise; keep all meaningful data.\n"
                 "9. Comment assumptions with <!-- ... -->.\n"
                 "10. Return only the cleaned markdown.\n"
@@ -176,8 +176,8 @@ class TextProcessor:
                             "Correct OCR errors, including spaces between characters in words, names, or numbers. "
                             "Format numbers and names properly, ensuring single '$' for currency, and structure the output in clear, coherent markdown. "
                             "Preserve meaningful information and structural elements (e.g., lists, tables). "
-                            "For payroll data, format details in a markdown table with columns: Employee, Role, Hours, Rate, Gross Pay, Net Pay. "
-                            "Validate numerical consistency: Gross Pay = Hours × Rate, Net Pay < Gross Pay. "
+                            "For academic data, ensure citations are consistent and definitions are clear. "
+                            "Preserve meaningful information and structural elements (e.g., lists, tables, formulas). "
                             "Note any assumptions made due to ambiguous text in markdown comments."
                         )
                     },
@@ -221,21 +221,51 @@ class TextProcessor:
     async def extract_relationships(self, data: Dict[str, Any]) -> List[Dict[str, str]]:
         try:
             text = data["content"]
-            chunk_index = str(data.get("chunk_index", 0))  # Cast to string to match SearchResult schema
-            doc = self.nlp(text)
-            relationships = []
-            for sent in doc.sents:
-                entities = [ent.text for ent in sent.ents if ent.label_ in ["PERSON", "ORG"]]
-                if len(entities) >= 2:
-                    for i in range(len(entities) - 1):
-                        relationships.append({
-                            "subject": entities[i],
-                            "object": entities[i + 1],
-                            "predicate": "related_to",
-                            "chunk_index": chunk_index
-                        })
-            logger.info(f"Extracted {len(relationships)} relationships from text")
-            return relationships
+            chunk_index = str(data.get("chunk_index", 0))
+
+            prompt = (
+                "Extract knowledge graph relationships from the following text.\n"
+                "Return them strictly in this format, one per line:\n"
+                "Entity1 | relation | Entity2\n\n"
+                "Rules:\n"
+                "- Only extract clear, factual relationships.\n"
+                "- Keep entities concise (names, organizations, dates, amounts).\n"
+                "- Keep the relation concise (1-3 words, e.g., ''argues'', ''proves'', ''defines'', ''cites'').\n"
+                "- Do not include any other text or markdown formatting.\n"
+                f"Text:\n{text[:2000]}\n\n"
+                "Output:"
+            )
+
+            try:
+                response = await self.client.chat.completions.create(
+                    model=settings.openai_chat_model,
+                    messages=[
+                        {"role": "system", "content": "You are a precise knowledge graph extraction system."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=250,
+                    temperature=0.0
+                )
+                
+                output = response.choices[0].message.content.strip()
+                relationships = []
+                
+                if output:
+                    for line in output.split('\n'):
+                        parts = [p.strip() for p in line.split('|')]
+                        if len(parts) == 3:
+                            relationships.append({
+                                "subject": parts[0],
+                                "predicate": parts[1],
+                                "object": parts[2],
+                                "chunk_index": chunk_index
+                            })
+                
+                logger.info(f"LLM extracted {len(relationships)} relationships from chunk {chunk_index}")
+                return relationships
+            except Exception as e:
+                logger.error(f"LLM relationship extraction failed: {str(e)}")
+                return []
         except Exception as e:
-            logger.error(f"Failed to extract relationships: {str(e)}")
+            logger.error(f"Failed to process relationship extraction: {str(e)}")
             return []

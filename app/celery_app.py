@@ -9,6 +9,7 @@ from psycopg2.extras import Json
 from app.config import settings
 from app.utils.ocr_processor import OCRProcessor
 from app.utils.qdrant_handler import QdrantHandler
+from app.utils.graph_db import save_memory_node, save_memory_edge
 from app.utils.helpers import preprocess_ocr_text, classify_document, get_db_connection, text_processor
 from app.converters import image_converter, doc_converter, excel_converter, txt_converter, pdf_converter
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -200,12 +201,14 @@ def process_ocr(self, file_id: str, user_id: str, file_ext: str, category: str |
                 logger.error(f"Embedding generation failed for {filename}: {str(e)}", extra={"task_id": task_id}, exc_info=True)
                 raise
 
-            # Store chunks in Qdrant
+            # Store chunks in Qdrant and Relationships in Graph DB
             try:
                 for i, (chunk_text, embedding) in enumerate(chunk_embeddings):
                     chunk_id = str(uuid.uuid5(uuid.UUID(file_id), f"chunk_{i}"))
                     entities = asyncio.run(text_processor.extract_entities(chunk_text))
                     relationships = asyncio.run(text_processor.extract_relationships({"content": chunk_text, "chunk_index": i}))
+                    
+                    # 1. Save to Qdrant Vector Store
                     qdrant_handler.store_chunk(
                         document_id=file_id,
                         chunk_id=chunk_id,
@@ -221,7 +224,18 @@ def process_ocr(self, file_id: str, user_id: str, file_ext: str, category: str |
                             "category": final_category
                         }
                     )
-                    logger.info(f"Stored chunk {chunk_id} for document {file_id}", extra={"task_id": task_id})
+                    
+                    # 2. Save extracted facts to Postgres Graph DB
+                    for rel in relationships:
+                        sub = rel.get("subject")
+                        pred = rel.get("predicate")
+                        obj = rel.get("object")
+                        if sub and pred and obj:
+                            save_memory_node(conn, node_type="entity", value=sub, source_id=file_id, user_id=user_id)
+                            save_memory_node(conn, node_type="entity", value=obj, source_id=file_id, user_id=user_id)
+                            save_memory_edge(conn, source_node=sub, relation=pred, target_node=obj, source_id=file_id, user_id=user_id)
+                            
+                    logger.info(f"Stored chunk {chunk_id} and {len(relationships)} graph edges for document {file_id}", extra={"task_id": task_id})
             except Exception as e:
                 logger.error(f"Qdrant storage failed for {filename}: {str(e)}", extra={"task_id": task_id}, exc_info=True)
                 raise
@@ -283,6 +297,69 @@ def process_ocr(self, file_id: str, user_id: str, file_ext: str, category: str |
                 logger.info(f"Updated status to 'failed' for file_id: {file_id}", extra={"task_id": task_id})
         except Exception as db_e:
             logger.error(f"Failed to update status to failed for {filename}: {str(db_e)}", extra={"task_id": task_id}, exc_info=True)
+        raise
+    finally:
+        conn.close()
+
+@celery_app.task(name="app.celery_app.extract_user_memory", bind=True, max_retries=3)
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), reraise=True)
+def extract_user_memory(self, chat_id: str, user_id: str):
+    task_id = self.request.id or "unknown"
+    logger.info(f"Starting user memory extraction for chat: {chat_id}, user: {user_id}")
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            # Fetch last 10 messages from this chat
+            cur.execute(
+                """
+                SELECT role, content FROM chat_messages 
+                WHERE chat_id = %s 
+                ORDER BY timestamp ASC
+                LIMIT 10
+                """,
+                (chat_id,)
+            )
+            messages = cur.fetchall()
+            if not messages:
+                return {"status": "success", "extracted": 0}
+                
+            conversation_text = "\n".join([f"{row[0].upper()}: {row[1]}" for row in messages])
+            
+            prompt = (
+                "Review the following conversation and extract any distinct, persistent user facts, preferences, or constraints.\n"
+                "Examples: budget limits, preferred response formats (e.g., 'short answers', 'bullet points'), project scope, or goals.\n\n"
+                "Return them strictly as one factual statement per line. Do not prefix with bullets or numbering.\n"
+                "If nothing noteworthy is found, output nothing.\n\n"
+                f"Conversation:\n{conversation_text}\n\n"
+                "Extracted Facts:"
+            )
+
+            response = asyncio.run(text_processor.client.chat.completions.create(
+                model=settings.openai_chat_model,
+                messages=[
+                    {"role": "system", "content": "You are a user profile AI. Extract persistent user preferences in concise, factual sentences."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=250,
+                temperature=0.0
+            ))
+            
+            output = response.choices[0].message.content.strip()
+            extracted_count = 0
+            
+            if output:
+                for line in output.split('\n'):
+                    fact = line.strip()
+                    if fact and len(fact) > 5 and len(fact) < 200:
+                        save_memory_node(conn, node_type="user_fact", value=fact, source_id=chat_id, user_id=user_id)
+                        extracted_count += 1
+                        
+            logger.info(f"Extracted {extracted_count} user facts for chat_id {chat_id}")
+            return {"status": "success", "extracted": extracted_count, "chat_id": chat_id}
+            
+    except Exception as e:
+        logger.error(f"User memory extraction failed: {str(e)}", exc_info=True)
         raise
     finally:
         conn.close()

@@ -63,7 +63,7 @@ class SessionState:
         if "pending_files" not in st.session_state:
             st.session_state.pending_files = {}
         if "categories" not in st.session_state:
-            st.session_state.categories = ["submittals", "payrolls", "bank_statements"]
+            st.session_state.categories = ["research_papers", "lecture_notes", "assignments"]
         logger.debug(f"Session state initialized: {st.session_state}")
 
 # Initialize session state
@@ -515,6 +515,98 @@ def render_chat_sessions(user_id: str):
         logger.error(error_msg)
         st.sidebar.error(error_msg)
 
+@st.dialog("Global AutoMem Graph")
+def show_global_memory_graph(user_id: str):
+    try:
+        with st.spinner("Loading complete graph..."):
+            response = requests.get(
+                f"{BASE_URL}/memory_graph?user_id={user_id}",
+                headers={"X-API-Key": settings.app_api_key},
+                timeout=30
+            )
+            if response.status_code == 200:
+                data = response.json()
+                edges = data.get("edges", [])
+                user_facts = data.get("user_facts", [])
+                
+                if not edges and not user_facts:
+                    st.info("Knowledge graph is currently empty. Upload documents or chat to generate memory.")
+                    return
+                    
+                net = Network(height="600px", width="100%", directed=True, notebook=True)
+                nodes = set()
+                
+                # 1. Add User Node and Facts
+                if user_facts:
+                    net.add_node(user_id, label="You (User)", color="#FFC0CB", shape="diamond", size=30)
+                    nodes.add(user_id)
+                    for idx, fact in enumerate(user_facts):
+                        fact_node = f"fact_{idx}"
+                        net.add_node(fact_node, label=fact["fact"], title=f"Learned at: {fact['created_at']}", color="#FFDEAD", shape="box")
+                        net.add_edge(user_id, fact_node, label="preference/fact")
+                        nodes.add(fact_node)
+
+                # 2. Add Document Graph Edges
+                for edge in edges:
+                    source = edge["source"]
+                    target = edge["target"]
+                    relation = edge["relation"]
+                    confidence = edge["confidence"]
+                    
+                    if source not in nodes:
+                        net.add_node(source, label=source, color="#ADD8E6", size=20)
+                        nodes.add(source)
+                    if target not in nodes:
+                        net.add_node(target, label=target, color="#ADD8E6", size=20)
+                        nodes.add(target)
+                        
+                    net.add_edge(source, target, label=relation, title=f"Confidence: {confidence}")
+
+                net.set_options("""
+                var options = {
+                    "nodes": {"font": {"size": 14}},
+                    "edges": {"font": {"size": 11}, "arrows": "to"},
+                    "physics": {
+                        "barnesHut": {
+                            "gravitationalConstant": -3000,
+                            "springLength": 150
+                        }
+                    }
+                }
+                """)
+                net.save_graph("global_graph.html")
+                with open("global_graph.html", "r", encoding="utf-8") as f:
+                    html_content = f.read()
+                components.html(html_content, height=600)
+            else:
+                st.error(f"Failed to load graph: {response.status_code} - {response.text}")
+    except Exception as e:
+        logger.error(f"Error rendering global graph: {str(e)}", exc_info=True)
+        st.error(f"Could not render graph: {str(e)}")
+
+@st.dialog("Clear All Memory")
+def confirm_reset_memory(user_id: str):
+    st.warning("Are you sure you want to clear your entire Knowledge Graph and all learned facts? This cannot be undone.")
+    if st.button("Yes, Clear Everything"):
+        try:
+            with st.spinner("Clearing brain..."):
+                response = requests.post(
+                    f"{BASE_URL}/clear_memory",
+                    data={"user_id": user_id},
+                    headers={"X-API-Key": settings.app_api_key},
+                    timeout=30
+                )
+                if response.status_code == 200:
+                    st.success("Memory cleared successfully!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(f"Failed to clear memory: {response.text}")
+        except Exception as e:
+            st.error(f"Error: {str(e)}")
+    if st.button("Cancel"):
+        st.rerun()
+
 def render_entity_graph(sources: List[Dict]):
     if not sources:
         return
@@ -566,6 +658,13 @@ def main():
     render_document_management(user_id)
     render_prompt_management(user_id)
     render_chat_sessions(user_id)
+    
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🌌 View Global Memory Graph"):
+        show_global_memory_graph(user_id)
+    
+    if st.sidebar.button("🗑️ Clear Global Memory"):
+        confirm_reset_memory(user_id)
 
     st.title("PDF-AutoMem")
     category = st.selectbox("Query Category", query_categories, index=0)

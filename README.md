@@ -80,9 +80,9 @@ FastRouter routes requests to any supported provider. Configure via `.env`:
 
 ## Example Use Cases
 
-- Extract payroll details from scanned PDFs and summarize hours worked
-- Organize business documents into categories (inventory, payroll, utility bills) with category-specific prompts
-- Query across all documents or specific categories for coherent, cited responses
+- Extract key findings and citations from research PDFs and summarize methodology
+- Organize academic documents into categories (research papers, lecture notes, assignments) with category-specific prompts
+- Query across all study materials or specific categories for coherent, cited responses
 
 ## Tech Stack
 
@@ -108,6 +108,3 @@ See [`api_docs.md`](./api_docs.md) for detailed endpoint usage.
 - Multi-file processing tested up to 5 concurrent files
 - Master Chat orchestration chain is still under development
 
-## License
-
-MIT License

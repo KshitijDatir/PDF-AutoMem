@@ -12,7 +12,7 @@ All endpoints require the X-API-Key header for validation. Responses are JSON un
 **Parameters** (multipart/form-data):  
 - file: UploadFile (required) - The file to process.  
 - user_id: str (required) - User identifier.  
-- category: str (optional) - Document category (e.g., "payrolls").  
+- category: str (optional) - Document category (e.g., "research_papers").  
 **Headers**: X-API-Key (required).  
 **Response**: 200 OK - {"status": "success", "file_id": str, "filename": str}.  
 **Errors**: 400 (file too large or invalid config), 401 (invalid key), 500 (processing error).
