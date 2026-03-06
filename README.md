@@ -1,6 +1,6 @@
-# AutoMem — The Intelligent Academic Assistant 🧠
+# AI Academic Assistant– Graph Memory RAG System
 
-**AutoMem** is a next-generation Retrieval-Augmented Generation (RAG) system specifically re-engineered as a **Student Academic Assistant**. Unlike traditional RAG, AutoMem doesn't just read documents—it *builds a brain*.
+This is a next-generation Retrieval-Augmented Generation (RAG) system specifically re-engineered as a **Student Academic Assistant**. Unlike traditional RAG, AutoMem doesn't just read documents—it *builds a brain*.
 
 By combining **Semantic Vector Search** (Qdrant) with a persistent **PostgreSQL Knowledge Graph**, AutoMem extracts structured relationships from your documents and remembers your personal preferences across every chat session.
 
